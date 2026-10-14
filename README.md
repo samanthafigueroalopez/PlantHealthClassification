@@ -42,8 +42,3 @@ We also apply techniques to reduce overfitting and compare performance on traini
 data/        dataset setup, splits, and class mappings (images downloaded locally)
 scripts/     download and preprocessing scripts
 ```
-
-## Team
-- Member 1 – Data pipeline
-- Member 2 – Model training and experiments
-- Member 3 – Analysis and demo
