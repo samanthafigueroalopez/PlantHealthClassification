@@ -1,0 +1,11 @@
+# Dataset images (download locally, never commit)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+*.zip
+
+# Secrets and environments
+.env
+venv/
+__pycache__/
