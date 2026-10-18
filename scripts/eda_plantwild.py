@@ -39,7 +39,7 @@ def is_healthy(class_name: str) -> bool:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default="data/raw/PlantWild", help="folder containing the extracted dataset")
-    ap.add_argument("--out", default="reports/eda", help="where to save figures and tables")
+    ap.add_argument("--out", default="reports/eda/plantwild", help="where to save figures and tables")
     ap.add_argument("--min-size", type=int, default=64, help="flag images smaller than this (pixels)")
     ap.add_argument("--hash-threshold", type=int, default=4, help="max hash distance to call two images near-duplicates")
     args = ap.parse_args()
