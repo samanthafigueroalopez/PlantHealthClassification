@@ -1,0 +1,12 @@
+Images readable:        18,542
+Corrupt/unreadable:     0
+Classes:                89
+  Healthy classes:      30
+  Diseased classes:     59
+Largest class:          basil leaf (589)
+Smallest class:         celery anthracnose (44)
+Imbalance ratio:        13.4x
+Median size (WxH):      645 x 514
+Images < 64px:          32
+Exact duplicate extras: 532 (in 470 groups)
+Near-duplicate pairs:   115
