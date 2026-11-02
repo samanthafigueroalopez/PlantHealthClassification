@@ -1,0 +1,12 @@
+Photos:                  5,156
+Photos per split:        {'train': 5156}
+Missing image files:     0
+Photos with no boxes:    0
+Leaves (boxes):          8,580
+Classes with leaves:     27
+Unused categories:       ['leaves']
+Largest class:           Tomato Brown Spots (1967)
+Smallest class:          Corn Charcoal (1)
+Leaves per photo:        median 1, max 8
+Median box size:         21.6% of photo
+Median photo size (WxH): 3120 x 3120

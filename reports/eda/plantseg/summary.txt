@@ -1,0 +1,14 @@
+Images readable:           7,774
+Corrupt/unreadable:        0
+Masks found:               7,774
+Images missing a mask:     0
+Classes:                   115
+Plants:                    34
+Largest class:             citrus canker (323)
+Smallest class:            coffee black rot (3)
+Imbalance ratio:           107.7x
+Split counts:              {'train': 5367, 'test': 1561, 'val': 846}
+Median size (WxH):         650 x 520
+Median diseased area:      13.9% of image
+Duplicate extras (within): 585
+Overlap with PlantWild:    4,540 images (4,490 exact)
