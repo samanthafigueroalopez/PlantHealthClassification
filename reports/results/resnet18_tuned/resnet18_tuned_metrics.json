@@ -1,0 +1,33 @@
+{
+  "model": "ResNet-18 (tuned)",
+  "accuracy": 0.6360067302299495,
+  "macro_precision": 0.6069547307046723,
+  "macro_recall": 0.5995898319005739,
+  "macro_f1": 0.5988770206224274,
+  "best_epoch": 24,
+  "epochs_run": 25,
+  "train_val_gap_at_best": 0.3490462822896866,
+  "training_minutes": 8.865935631593068,
+  "test_samples": 3566,
+  "config": {
+    "model": "ResNet-18 (ImageNet, full fine-tuning)",
+    "optimizer": "AdamW",
+    "lr_body": 0.0001,
+    "lr_head": 0.001,
+    "weight_decay": 0.01,
+    "label_smoothing": 0.1,
+    "class_weights": "inverse sqrt frequency",
+    "schedule": "cosine",
+    "max_epochs": 25,
+    "patience": 5,
+    "batch_size": 32,
+    "augmentation": "RandomResizedCrop(0.6-1), flip, rotation 15, color jitter",
+    "mixed_precision": true
+  },
+  "previous_run": {
+    "accuracy": 0.6203,
+    "precision": 0.6099,
+    "recall": 0.5672,
+    "f1": 0.5726
+  }
+}
