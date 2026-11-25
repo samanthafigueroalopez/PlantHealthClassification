@@ -1,0 +1,13 @@
+{
+  "leaves_evaluated": 2320,
+  "leaves_skipped": 0,
+  "fieldplant_classes_used": 7,
+  "plantwild_classes_used": 7,
+  "accuracy_all_89": 0.303,
+  "macro_f1_all_89": 0.1819,
+  "accuracy_restricted": 0.3862,
+  "macro_f1_restricted": 0.251,
+  "plantwild_test_accuracy_same_model": 0.636,
+  "majority_class_baseline": 0.7121,
+  "note": "restricted = prediction limited to the PlantWild classes that FieldPlant can map to"
+}
