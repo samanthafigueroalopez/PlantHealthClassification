@@ -1,0 +1,8 @@
+true \ predicted,corn gray leaf spot,corn leaf,corn northern leaf blight,corn rust,tomato leaf,tomato mosaic virus,tomato yellow leaf curl virus
+corn gray leaf spot,29,0,21,4,0,0,0
+corn leaf,61,52,36,2,0,0,1
+corn northern leaf blight,542,282,678,136,1,5,8
+corn rust,13,0,1,35,0,0,0
+tomato leaf,13,49,11,29,84,55,38
+tomato mosaic virus,3,2,0,0,8,5,1
+tomato yellow leaf curl virus,19,15,3,9,20,36,13

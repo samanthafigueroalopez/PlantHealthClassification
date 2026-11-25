@@ -1,0 +1,28 @@
+fieldplant_class,leaves,plantwild_class,used,note
+Tomato Brown Spots,1967,,False,no matching PlantWild tomato class
+Cassava Mosaic,1897,,False,crop not in PlantWild
+Corn leaf blight,1652,corn northern leaf blight,True,assumes FieldPlant 'leaf blight' = northern leaf blight
+Corn Yellowing,495,,False,no matching PlantWild corn class
+Cassava Healthy,417,,False,crop not in PlantWild
+Tomato blight leaf,404,,False,ambiguous: could be early or late blight
+Tomato healthy,279,tomato leaf,True,
+Corn Streak,252,,False,no matching PlantWild corn class
+Corn Brown Spots,220,,False,no matching PlantWild corn class
+Cassava Brown Leaf Spot,211,,False,crop not in PlantWild
+Corn Stripe,162,,False,no matching PlantWild corn class
+Corn Healthy,152,corn leaf,True,
+Tomato leaf yellow virus,115,tomato yellow leaf curl virus,True,assumes 'leaf yellow virus' = yellow leaf curl virus
+Cassava Root Rot,77,,False,crop not in PlantWild
+Corn Gray leaf spot,54,corn gray leaf spot,True,
+Corn rust leaf,49,corn rust,True,
+Corn Mildew,43,,False,no matching PlantWild corn class
+Corn Chlorotic Leaf Spot,26,,False,no matching PlantWild corn class
+Cassava Bacterial Blight,25,,False,crop not in PlantWild
+Tomato leaf mosaic virus,19,tomato mosaic virus,True,
+Corn Insects Damages,17,,False,no matching PlantWild corn class
+Corn Yellow Spots,16,,False,no matching PlantWild corn class
+Corn Smut,13,corn smut,False,
+Corn Purple Discoloration,8,,False,no matching PlantWild corn class
+Corn Violet Decoloration,7,,False,no matching PlantWild corn class
+Tomato bacterial wilt,2,,False,no matching PlantWild tomato class
+Corn Charcoal,1,,False,no matching PlantWild corn class
