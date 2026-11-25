@@ -1,8 +1,9 @@
-"""LeafLens plant classification dashboard. Run with python -m streamlit run app.py."""
+"""LeafLens plant classification dashboard. Run with: python -m streamlit run Final_app.py"""
 import csv
 import hashlib
 import html
 import json
+import os
 import time
 from datetime import datetime
 from io import BytesIO, StringIO
@@ -50,6 +51,32 @@ MODEL_PATH = APP_DIR / "resnet18_tuned_best.pth"
 LABELS_PATH = APP_DIR / "class_names.json"
 # Previously reported tuned-run test metrics; not measured on UI photos.
 METRICS = {"Accuracy":63.60,"Precision":60.70,"Recall":59.96,"F1-score":59.89}
+# FieldPlant generalization (scripts/eval_fieldplant.py, 2,320 leaf crops from 7 mapped classes).
+FIELDPLANT = {"Accuracy (89 classes)":30.3,"Macro-F1 (89 classes)":18.2,"Accuracy (corn/tomato only)":38.6,"Macro-F1 (corn/tomato only)":25.1}
+# Google Drive share link for the weights, used when the .pth is not beside the app (e.g. Streamlit Cloud).
+MODEL_URL_KEY = "LEAFLENS_MODEL_URL"
+
+
+def ensure_weights():
+    """Use the local .pth if present; otherwise download it once from LEAFLENS_MODEL_URL."""
+    if MODEL_PATH.is_file():
+        return
+    url = os.environ.get(MODEL_URL_KEY, "")
+    if not url:
+        try:
+            url = st.secrets.get(MODEL_URL_KEY, "")
+        except Exception:
+            url = ""
+    if not url:
+        raise FileNotFoundError("Model weights not found. Place resnet18_tuned_best.pth beside Final_app.py, "
+                                f"or set {MODEL_URL_KEY} (a Google Drive share link) in Streamlit secrets.")
+    try:
+        import gdown
+        gdown.download(url, str(MODEL_PATH), quiet=True, fuzzy=True)
+    except Exception as exc:
+        raise RuntimeError(f"Could not download the model weights: {exc}") from exc
+    if not MODEL_PATH.is_file():
+        raise RuntimeError("Model download finished but resnet18_tuned_best.pth is missing. Check the share link.")
 
 
 @st.cache_resource(show_spinner=False)
@@ -60,13 +87,10 @@ def load_classifier():
         from torchvision import models, transforms
     except ImportError as exc:
         raise RuntimeError("Install torch and torchvision using requirements.txt, then restart the app.") from exc
-    if not MODEL_PATH.is_file():
-        raise FileNotFoundError("Place resnet18_tuned_best.pth beside app.py.")
+    ensure_weights()
     labels_path = LABELS_PATH
     if not labels_path.is_file():
-        labels_path = APP_DIR / "class_names(1).json"
-    if not labels_path.is_file():
-        raise FileNotFoundError("Place class_names.json beside app.py.")
+        raise FileNotFoundError("Place class_names.json beside Final_app.py.")
     with labels_path.open(encoding="utf-8") as file:
         labels = json.load(file)
     if not isinstance(labels, list) or len(labels) != 89 or not all(isinstance(x, str) and x for x in labels):
@@ -94,7 +118,82 @@ def predict_leaf(image):
     return {labels[index]: float(score) for index, score in zip(indices.tolist(), scores.tolist())}
 
 
+def jet(values):
+    """Blue -> green -> red colormap without matplotlib. values: float array in [0, 1]."""
+    import numpy as np
+    v = values[..., None]
+    rgb = np.concatenate([1.5 - np.abs(4 * v - 3), 1.5 - np.abs(4 * v - 2), 1.5 - np.abs(4 * v - 1)], axis=-1)
+    return (np.clip(rgb, 0, 1) * 255).astype("uint8")
+
+
+def gradcam_overlay(image, class_name, alpha=0.45):
+    """Grad-CAM on ResNet18's last conv block (layer4) for the predicted class.
+
+    Returns (overlay image, share of the photo the model focused on)."""
+    import numpy as np
+    import torch
+    model, labels, preprocess = load_classifier()
+    store = {}
+
+    def keep(module, inputs, output):
+        store["act"] = output
+        output.register_hook(lambda grad: store.__setitem__("grad", grad))
+
+    handle = model.layer4.register_forward_hook(keep)
+    try:
+        with torch.enable_grad():
+            logits = model(preprocess(image.convert("RGB")).unsqueeze(0))
+            model.zero_grad(set_to_none=True)
+            logits[0, labels.index(class_name)].backward()
+    finally:
+        handle.remove()
+        model.zero_grad(set_to_none=True)
+    weights = store["grad"].mean(dim=(2, 3), keepdim=True)
+    cam = torch.relu((weights * store["act"]).sum(dim=1))[0].detach()
+    cam = (cam - cam.min()) / (cam.max() - cam.min() + 1e-8)
+    base = image.convert("RGB").copy()
+    base.thumbnail((700, 700))
+    cam_img = Image.fromarray((cam.numpy() * 255).astype("uint8")).resize(base.size, Image.BILINEAR)
+    cam_arr = np.asarray(cam_img, dtype="float32") / 255.0
+    blended = (1 - alpha) * np.asarray(base, dtype="float32") + alpha * jet(cam_arr).astype("float32")
+    return Image.fromarray(blended.astype("uint8")), float((cam_arr > 0.5).mean())
+
+
+def explain(scores, focus=None):
+    """Plain-language notes on why the model gave this answer."""
+    items = list(scores.items())
+    (top, c1), (second, c2) = items[0], items[1]
+    notes = []
+    if c1 >= 0.70:
+        notes.append(("success", f"Confident: {c1:.0%} for **{top}**."))
+    elif c1 >= 0.40:
+        notes.append(("info", f"Moderate confidence: {c1:.0%} for **{top}**. Treat it as a likely match, not a diagnosis."))
+    else:
+        notes.append(("warning", f"Low confidence: only {c1:.0%} for **{top}**. The photo may differ from the training "
+                                 "images (lighting, background, angle, several leaves) or show a plant outside the 89 classes."))
+    if c1 - c2 < 0.15:
+        notes.append(("info", f"Close call between **{top}** ({c1:.0%}) and **{second}** ({c2:.0%})."))
+    if focus is not None:
+        if focus > 0.45:
+            notes.append(("info", "The heatmap is spread over much of the photo, so the model may be using the background "
+                                  "or overall leaf shape rather than specific spots. Try a closer photo of one leaf."))
+        else:
+            notes.append(("info", "The heatmap is concentrated on part of the photo. Check that the red area covers the "
+                                  "leaf or lesions; if it is on the sky or soil, the prediction is less trustworthy."))
+    return notes
+
+
+def show_explanation(record):
+    heat = st.session_state.heatmaps.get(record["id"])
+    if heat is not None:
+        st.image(heat[0], width="stretch",
+                 caption="Grad-CAM: red = areas that most influenced this prediction, blue = little influence.")
+    for kind, text in explain(record["scores"], heat[1] if heat is not None else None):
+        getattr(st, kind)(text)
+
+
 st.session_state.setdefault("history", [])
+st.session_state.setdefault("heatmaps", {})
 
 
 def decode_image(raw):
@@ -202,6 +301,10 @@ def process_photo(raw, filename, source):
         "source": source,
         "dimensions": list(dimensions),
     }
+    try:
+        st.session_state.heatmaps[record["id"]] = gradcam_overlay(image, scenario)
+    except Exception:
+        pass  # the explanation is optional; never block the prediction
     st.session_state.next_record_id += 1
     st.session_state.history.append(record)
     preview = image.copy()
@@ -215,7 +318,7 @@ with st.sidebar:
     st.markdown("## 🌱 LeafLens")
     st.caption("PLANT CLASSIFICATION")
     st.divider()
-    page = st.radio("WORKSPACE", ["Classify a leaf", "History & confidence"])
+    page = st.radio("WORKSPACE", ["Classify a leaf", "History & confidence", "How it works"])
     st.divider()
     st.caption("ResNet18 · 89 PlantWild classes")
     st.caption("Upload or capture a leaf photo to classify it.")
@@ -268,12 +371,14 @@ if page == "Classify a leaf":
                     st.subheader("Your result")
                     st.image(st.session_state.preview, width="stretch")
                     row = st.session_state.active_result
-                    st.markdown(f'<div class="result"><small>PREDICTED CLASSIFICATION</small><h2>{html.escape(row["scenario"])}</h2></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="result"><small>PREDICTED CLASSIFICATION · {row["confidence"]:.0%} CONFIDENCE</small><h2>{html.escape(row["scenario"])}</h2></div>', unsafe_allow_html=True)
+                    with st.expander("Why did it predict this?", expanded=row["confidence"] < 0.40):
+                        show_explanation(row)
                     st.caption("Research prediction. Results can be incorrect, especially for plants outside the training classes.")
                     st.caption("View confidence scores and previous results on History & confidence.")
                     st.button("Classify another leaf", type="primary", on_click=start_over, width="stretch")
 
-else:
+elif page == "History & confidence":
     st.title("History & confidence")
     st.caption("Review this session's results and inspect confidence scores.")
     history_tab, metrics_tab = st.tabs(["Session results", "Reported model performance"])
@@ -299,6 +404,9 @@ else:
                     for label, score in record["scores"].items():
                         st.write(f"{label} · {score:.0%}")
                         st.progress(score)
+            with st.container(border=True):
+                st.subheader("Why did it predict this?")
+                show_explanation(record)
             st.warning("Confidence is the model’s softmax score, not a guaranteed probability of correctness. The top 3 scores may total less than 100%.")
             st.dataframe(pd.DataFrame([{"Record":r["id"], "File":r["filename"], "Predicted class":r["scenario"], "Model confidence":f"{r['confidence']:.0%}", "Time":r["created_at"]} for r in reversed(records)]), hide_index=True, width="stretch")
             a,b = st.columns(2)
@@ -307,6 +415,7 @@ else:
             confirm = st.checkbox("Confirm clearing session history")
             if st.button("Clear history", disabled=not confirm):
                 st.session_state.history = []
+                st.session_state.heatmaps = {}
                 st.rerun()
         st.caption("History stays in session memory and may disappear when the session ends. Times include the server timezone offset.")
     with metrics_tab:
@@ -314,5 +423,39 @@ else:
         for col,(name,value) in zip(st.columns(4), METRICS.items()):
             col.metric(name, f"{value:.2f}%")
         st.caption("Previously reported tuned ResNet18 PlantWild test metrics; precision, recall, and F1 are macro averages. These are separate from per-image confidence and have not been remeasured here.")
+        st.subheader("FieldPlant field photos (never used in training)")
+        for col,(name,value) in zip(st.columns(4), FIELDPLANT.items()):
+            col.metric(name, f"{value:.1f}%")
+        st.caption("2,320 leaves cropped from FieldPlant's bounding boxes, in the 7 classes that match PlantWild. The drop from PlantWild shows how much harder real farm photos are; 71% of these leaves are one class, so macro-F1 is the fairer number.")
+
+else:
+    st.title("How LeafLens works")
+    st.caption("From public datasets to a prediction on your photo.")
+    st.markdown('<div class="banner"><h2>Trained on in-the-wild photos, checked against field photos.</h2>'
+                '<p>LeafLens uses a ResNet18 fine-tuned on PlantWild to name one of 89 plant and disease classes, '
+                'then shows a Grad-CAM heatmap of the areas that drove the answer.</p></div>', unsafe_allow_html=True)
+    steps = [("1 · Data", "PlantWild cleaned with SHA-256 duplicate removal: 17,896 images in the official train / val / test splits."),
+             ("2 · Train", "A custom CNN from scratch and an ImageNet-pretrained ResNet18, tuned with AdamW, cosine LR and class weights."),
+             ("3 · Evaluate", "PlantWild test set, Grad-CAM vs. PlantSeg disease masks, and FieldPlant field photos."),
+             ("4 · App", "This Streamlit app loads the tuned ResNet18 and explains each prediction.")]
+    for col, (title, text) in zip(st.columns(4), steps):
+        with col:
+            with st.container(border=True):
+                st.markdown(f"**{title}**")
+                st.caption(text)
+    st.subheader("Three datasets, three jobs")
+    st.dataframe(pd.DataFrame([
+        {"Dataset": "PlantWild", "Role": "Training and testing", "Size": "17,896 images · 89 classes",
+         "Result": "63.6% test accuracy (tuned ResNet18)"},
+        {"Dataset": "PlantSeg", "Role": "Explainability: Grad-CAM vs. disease masks (IoU / Dice)",
+         "Size": "7,774 images (PlantWild overlaps excluded)", "Result": "See project report"},
+        {"Dataset": "FieldPlant", "Role": "Independent generalization test", "Size": "2,320 leaf crops · 7 mapped classes",
+         "Result": "30.3% accuracy · 0.182 macro-F1"},
+    ]), hide_index=True, width="stretch")
+    st.subheader("Limitations")
+    st.markdown("- Only the 89 PlantWild classes are known; any other plant is forced into the closest class.\n"
+                "- Accuracy drops on real farm photos (FieldPlant), especially between look-alike diseases such as corn northern leaf blight and gray leaf spot.\n"
+                "- Backgrounds, backlighting and several leaves in one photo lower confidence; a close photo of one leaf works best.\n"
+                "- Confidence is a softmax score, not a guarantee. LeafLens is a research prototype, not a diagnosis.")
 
 st.markdown('<div class="footer">LEAFLENS · Plant classification research · Python + Streamlit</div>', unsafe_allow_html=True)
