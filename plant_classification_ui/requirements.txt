@@ -1,2 +1,6 @@
 streamlit>=1.41,<2
 Pillow>=10.4,<13
+pandas
+torch
+torchvision
+gdown
