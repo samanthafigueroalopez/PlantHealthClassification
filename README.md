@@ -1,44 +1,95 @@
-# Plant Disease Classification with CNNs
+﻿# Plant Disease Classification Using CNNs (LeafLens)
 
-## Objective
-Plant diseases can affect the health and yield of crops, so identifying diseases from their visual appearance can help with early detection. This project designs a convolutional neural network (CNN) image classification model that determines whether a plant is healthy or diseased, and identifies the disease category. CNNs are well suited to this task because they can learn important visual features such as color, texture, and leaf patterns.
+CMPE 258 Deep Learning, San Jose State University. Team: **Michelle Fang, Samantha Figueroa, Ritika Sarpal** (Group 4).
 
-Many existing models perform very well on images taken in controlled lab conditions but struggle on real-world photos. Our main challenge is **generalization to unseen, real-world images**.
+We classify in-the-wild plant photos as healthy or as one of 59 diseases (89 classes), compare a CNN trained
+from scratch with a fine-tuned ResNet-18, test generalization on real farm photos, check *where* the model looks
+with Grad-CAM against ground-truth disease masks, and ship the model in **LeafLens**, a Streamlit web app.
 
-## Approach
-1. **Train and test** a CNN on **PlantWild**, a dataset of in-the-wild plant images.
-2. **Analyze** what the model focuses on using **PlantSeg**, comparing Grad-CAM heatmaps with PlantSeg's disease masks.
-3. **Test generalization** by evaluating the trained (frozen) model on **FieldPlant**, a dataset of real field photos from plantations.
+## Results at a glance
 
-We also apply techniques to reduce overfitting and compare performance on training data versus real-world images.
+| Evaluation | Data | Result |
+|---|---|---|
+| Custom CNN v2 (from scratch) | PlantWild test, 3,566 images | 38.4% accuracy, 33.0% macro-F1 |
+| **ResNet-18 (ImageNet, fine-tuned)** | PlantWild test, 3,566 images | **63.6% accuracy, 59.9% macro-F1** |
+| Independent field test | FieldPlant, 2,320 leaf crops, 7 mapped classes | 30.3% accuracy / 0.182 macro-F1 (all 89 classes); 38.6% / 0.251 (corn/tomato classes only) |
+| Grad-CAM vs. disease masks | PlantSeg, 903 images that are PlantWild test images | IoU 0.217, Dice 0.331; **correct 0.248 IoU vs. wrong 0.164** |
+| Speed | ResNet-18, 11.2M parameters | 9 min training (Colab T4); ~53 ms per photo on a laptop CPU |
 
-## Project Specifications
+Key findings: transfer learning nearly doubles performance; ResNet-18 overfits while the small CNN underfits;
+accuracy drops sharply on real farm photos (look-alike diseases such as corn northern leaf blight vs. gray leaf
+spot); and when the model is right, its Grad-CAM heatmap overlaps the diseased tissue about 50% more than when it is wrong.
 
-| Component | Specification |
+| | |
 |---|---|
-| Project objective | Classify healthy plants and plant disease categories from images |
-| Model | Convolutional Neural Network (CNN) |
-| Training dataset | PlantWild |
-| Feature analysis dataset | PlantSeg |
-| Independent testing dataset | FieldPlant |
-| Preprocessing | Duplicate removal, resizing, normalization |
-| Evaluation metrics | Accuracy, precision, recall, F1-score |
-| Additional evaluation | Confusion matrix, training/validation loss and accuracy |
-| Expected output | Predicted plant health or disease category |
-| Main challenge | Generalization to unseen, real-world images |
+| ![Model comparison](reports/figures/final/fig1_model_comparison.png) | ![Training curves](reports/figures/final/fig2_training_curves.png) |
+| ![Generalization drop](reports/figures/final/fig3_generalization_drop.png) | ![Grad-CAM IoU](reports/figures/final/fig5_gradcam_iou.png) |
+
+![Grad-CAM examples](reports/figures/final/fig6_gradcam_examples.png)
 
 ## Datasets
 
-| Dataset | Role | Size | Download | Paper |
-|---|---|---|---|---|
-| PlantWild | Training + main test | 18,542 images, 89 classes | [Hugging Face](https://huggingface.co/datasets/uqtwei2/PlantWild) | [arXiv 2408.03120](https://arxiv.org/abs/2408.03120) |
-| PlantSeg | Feature analysis | 7,774 images, 115 classes, with segmentation masks | [Zenodo](https://doi.org/10.5281/zenodo.17719108) | [Scientific Data 2026](https://www.nature.com/articles/s41597-025-06513-4) |
-| FieldPlant | Independent field test | 5,156 images | [Roboflow](https://universe.roboflow.com/plant-disease-detection/fieldplant) | [IEEE Access 2023](https://doi.org/10.1109/ACCESS.2023.3263042) |
+| Dataset | Role | Size |
+|---|---|---|
+| [PlantWild](https://huggingface.co/datasets/uqtwei2/PlantWild) | Training, validation, test (official splits) | 17,896 images after SHA-256 de-duplication; 89 classes |
+| PlantSeg | Explainability: Grad-CAM vs. pixel-level disease masks | 7,774 images, 115 classes |
+| FieldPlant | Independent generalization test (never trained on) | 5,156 plantation photos, 8,580 labeled leaves, 27 classes |
 
-> **Note:** Dataset images are not stored in this repository due to their size and licensing. See `data/README.md` for download instructions.
+Datasets are not stored in the repo (size and licensing); `data/` is git-ignored and the download scripts recreate it.
+**No leakage:** duplicate images were removed with SHA-256 hashes, keeping the test copy, so no test image is in training.
+PlantSeg images that also appear in PlantWild train/val are excluded from the Grad-CAM evaluation; only PlantSeg
+images matching PlantWild *test* images are used (the other 3,234 PlantSeg images are diseases PlantWild does not have).
 
-## Repository Structure
+## Repository layout
+
+## Setup
+
+Python 3.10+.
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate            # macOS/Linux: source .venv/bin/activate
+pip install -r plant_classification_ui/requirements.txt
+pip install matplotlib scikit-learn opencv-python tqdm   # for the analysis scripts
 ```
-data/        dataset setup, splits, and class mappings (images downloaded locally)
-scripts/     download and preprocessing scripts
+
+The tuned weights (`resnet18_tuned_best.pth`, 45 MB) are not in git. Download them from Release `v0.3-models`
+(or the team Drive link) into `reports/results/resnet18_tuned/` and `plant_classification_ui/`.
+
+## Run LeafLens
+
+```bash
+cd plant_classification_ui
+python -m streamlit run Final_app.py
 ```
+
+Upload or photograph a leaf to get the predicted class, the top-3 scores, and a Grad-CAM heatmap showing which
+part of the photo drove the prediction. If the `.pth` is missing, the app downloads it from `LEAFLENS_MODEL_URL`
+(environment variable or Streamlit secret). `python check_model.py` checks the class order and accuracy on a PlantWild test sample.
+
+## Reproduce the evaluations (from the repo root)
+
+```bash
+python scripts/eval_fieldplant.py                 # FieldPlant: crop leaves, map classes, evaluate
+python -m analysis.run_plantseg_metadata --checkpoint reports/results/resnet18_tuned/resnet18_tuned_best.pth --plantseg-root data/raw/PlantSeg/plantseg --class-names plant_classification_ui/class_names.json --overlap-csv reports/eda/plantseg/overlap_with_plantwild.csv --out reports/results/plantseg_gradcam --save-examples 12
+python scripts/make_final_figures.py              # all report/slide figures + numbers.md
+```
+
+## Limitations
+
+- Only the 89 PlantWild classes are known; any other plant is forced into the closest class.
+- Performance drops on real field photos; look-alike diseases are the main source of errors.
+- Grad-CAM maps are coarse (7x7), so absolute IoU with fine-grained disease masks is modest.
+- LeafLens is a research prototype, not a diagnostic tool.
+
+## Team
+
+| Member | Main contributions |
+|---|---|
+| Michelle Fang | LeafLens Streamlit app and model integration; EDA review |
+| Samantha Figueroa | Data pipeline and download scripts; EDA for all three datasets; de-duplication; tuned training runs; FieldPlant evaluation; final figures |
+| Ritika Sarpal | Baseline CNN, ResNet-18 and custom CNN v2 models; Grad-CAM vs. PlantSeg evaluation pipeline and tests |
+
+## References
+
+PlantWild: Wei et al., ACM MM 2024. PlantSeg: Wei et al., arXiv:2409.04038. FieldPlant: Moupojou et al., IEEE Access 2023.
