@@ -1,0 +1,12 @@
+{
+  "evaluated_samples": 903,
+  "excluded_overlap_stems": 3637,
+  "classification_accuracy_on_evaluated_subset": 0.636766334440753,
+  "mean_iou": 0.21734387658782736,
+  "mean_dice": 0.33142304341716805,
+  "mean_iou_correct_predictions": 0.247975529555697,
+  "mean_iou_incorrect_predictions": 0.16364509470817787,
+  "mean_dice_correct_predictions": 0.37378802213392665,
+  "mean_dice_incorrect_predictions": 0.2571551691423626,
+  "threshold": 0.5
+}
