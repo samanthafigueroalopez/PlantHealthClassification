@@ -71,8 +71,16 @@ def ensure_weights():
         raise FileNotFoundError("Model weights not found. Place resnet18_tuned_best.pth beside Final_app.py, "
                                 f"or set {MODEL_URL_KEY} (a Google Drive share link) in Streamlit secrets.")
     try:
-        import gdown
-        gdown.download(url, str(MODEL_PATH), quiet=True, fuzzy=True)
+        if "drive.google.com" in url:
+            import gdown
+            gdown.download(url=url, output=str(MODEL_PATH), quiet=True)
+        else:  # plain HTTPS link, e.g. a GitHub Release asset
+            import shutil
+            import urllib.request
+            part = MODEL_PATH.with_suffix(".part")
+            with urllib.request.urlopen(url, timeout=300) as response, open(part, "wb") as out:
+                shutil.copyfileobj(response, out)
+            part.replace(MODEL_PATH)
     except Exception as exc:
         raise RuntimeError(f"Could not download the model weights: {exc}") from exc
     if not MODEL_PATH.is_file():
